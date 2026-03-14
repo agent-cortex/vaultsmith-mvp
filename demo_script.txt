@@ -1,0 +1,32 @@
+VaultSmith Weekly Review Demo Script (60-90 seconds)
+
+Total target time: ~75 seconds
+
+Shot 1 (0:00-0:10) - Intro + vault structure (Before)
+- Show terminal in /home/home/vaultsmith
+- Narration: "This is VaultSmith. It ingests plaintext into Obsidian folders and now generates a weekly review note."
+- Show vault folders: 00 Inbox, 10 Projects, 20 People, 30 Concepts, 40 Decisions, and empty/new 90 Reviews.
+
+Shot 2 (0:10-0:25) - Ingest source notes
+- Run: python cli.py ingest --input sample_input.txt --vault /home/home/obsidian-vault
+- Narration: "Ingest creates and updates linked notes across projects, people, concepts, and decisions."
+- Briefly show success output with run_id and inbox note path.
+
+Shot 3 (0:25-0:42) - Run weekly review command
+- Run: python cli.py review --vault /home/home/obsidian-vault
+- Narration: "Now the new review command scans key folders and writes a weekly review using ISO week naming."
+- Pause on output line showing review_note path in 90 Reviews.
+
+Shot 4 (0:42-1:05) - Open generated review (After)
+- Open /home/home/obsidian-vault/90 Reviews/weekly-review-YYYY-Www.md
+- Scroll through sections:
+  1) Top Themes
+  2) Open Loops
+  3) Recent Decisions
+  4) Suggested Next 3 Actions
+  5) Stale Projects
+- Narration: "The review highlights themes, pulls open checkboxes, references recent decision notes, and suggests next actions with wikilinks."
+
+Shot 5 (1:05-1:15) - Close
+- Narration: "That’s weekly review generation in VaultSmith: one command, one note, clear weekly focus."
+- End on generated review filename and folder path.

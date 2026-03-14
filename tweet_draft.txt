@@ -1,0 +1,12 @@
+Built VaultSmith with Hermes Agent for the Hermes Agent Hackathon.
+
+VaultSmith turns messy chats/links/docs into a structured Obsidian knowledge vault:
+- auto creates linked notes (Projects, People, Concepts, Decisions)
+- extracts TODOs + open loops
+- generates a weekly review with top themes + next actions
+
+In this demo I ingest raw notes, then generate a full weekly review in one command.
+
+Built with Python + Hermes Agent tooling.
+
+#HermesAgent #NousResearch @NousResearch
