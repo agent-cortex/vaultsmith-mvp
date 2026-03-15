@@ -9,7 +9,7 @@ from uuid import uuid4
 
 from .extract import extract_entities
 from .models import IngestResult
-from .writer import write_entity_notes, write_inbox_note
+from .writer import write_entity_notes, write_inbox_note, write_memory_notes
 
 
 class IngestError(RuntimeError):
@@ -50,6 +50,14 @@ def ingest_file(input_path: Path, vault_path: Path, run_id: Optional[str] = None
             inbox_note_path=inbox_note,
             now=now,
         )
+
+        write_memory_notes(
+            vault_path=vault_path,
+            extraction=extraction,
+            run_id=effective_run_id,
+            inbox_note_path=inbox_note,
+            now=now,
+        )
     except PermissionError as exc:
         raise IngestError(f"Permission denied while writing to vault: {vault_path}") from exc
     except FileNotFoundError as exc:
@@ -63,4 +71,5 @@ def ingest_file(input_path: Path, vault_path: Path, run_id: Optional[str] = None
         concepts=sorted(extraction.concepts),
         decisions=extraction.decisions,
         tasks=extraction.tasks,
+        memory_candidates=extraction.memory_candidates,
     )

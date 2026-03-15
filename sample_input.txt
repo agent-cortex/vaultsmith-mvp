@@ -18,3 +18,9 @@ Also tracking #project/obsidian-migration and #project/demo_pipeline.
 Project: Team Wiki Refresh
 
 More chatter: GraphSync may evolve into a plugin. DataModel still needs edge-case handling.
+
+Preference: Keep command examples in fenced code blocks.
+Environment: Default vault path is /home/home/obsidian-vault.
+Convention: Promote only stable repeated facts to persistent memory.
+Profile: Preferred name is Megabyte.
+Memory: Weekly synthesis is scheduled on Sunday mornings.

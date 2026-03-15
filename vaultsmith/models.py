@@ -12,6 +12,12 @@ class TaskItem:
     completed: bool = False
 
 
+@dataclass(frozen=True)
+class MemoryCandidate:
+    category: str
+    text: str
+
+
 @dataclass
 class ExtractionResult:
     projects: Set[str] = field(default_factory=set)
@@ -20,6 +26,7 @@ class ExtractionResult:
     decisions: List[str] = field(default_factory=list)
     tasks: List[TaskItem] = field(default_factory=list)
     summary_bullets: List[str] = field(default_factory=list)
+    memory_candidates: List[MemoryCandidate] = field(default_factory=list)
 
 
 @dataclass
@@ -31,3 +38,4 @@ class IngestResult:
     concepts: List[str]
     decisions: List[str]
     tasks: List[TaskItem]
+    memory_candidates: List[MemoryCandidate]

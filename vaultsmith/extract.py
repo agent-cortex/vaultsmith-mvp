@@ -6,7 +6,7 @@ from collections import Counter
 import re
 from typing import Iterable, List
 
-from .models import ExtractionResult, TaskItem
+from .models import ExtractionResult, MemoryCandidate, TaskItem
 
 PROJECT_LINE_RE = re.compile(r"^\s*Project:\s*(.+?)\s*$", re.IGNORECASE)
 HASHTAG_PROJECT_RE = re.compile(r"#project/([A-Za-z0-9][A-Za-z0-9_-]*)")
@@ -16,6 +16,14 @@ DECISION_LINE_RE = re.compile(r"^\s*Decision:\s*(.+?)\s*$", re.IGNORECASE)
 TODO_LINE_RE = re.compile(r"^\s*TODO:\s*(.+?)\s*$", re.IGNORECASE)
 CHECKBOX_RE = re.compile(r"^\s*[-*]\s*\[( |x|X)\]\s*(.+?)\s*$")
 TITLECASE_WORD_RE = re.compile(r"\b[A-Z][a-z]+(?:[A-Z][a-z]+)*\b")
+
+MEMORY_PREFIX_PATTERNS = [
+    ("preference", re.compile(r"^\s*Preference:\s*(.+?)\s*$", re.IGNORECASE)),
+    ("environment", re.compile(r"^\s*Environment:\s*(.+?)\s*$", re.IGNORECASE)),
+    ("convention", re.compile(r"^\s*Convention:\s*(.+?)\s*$", re.IGNORECASE)),
+    ("profile", re.compile(r"^\s*Profile:\s*(.+?)\s*$", re.IGNORECASE)),
+    ("memory", re.compile(r"^\s*Memory:\s*(.+?)\s*$", re.IGNORECASE)),
+]
 
 
 STOP_TITLECASE_WORDS = {
@@ -52,6 +60,19 @@ def _meaningful_lines(lines: Iterable[str], limit: int = 5) -> List[str]:
     return picked
 
 
+def _append_memory_candidate(result: ExtractionResult, category: str, text: str) -> None:
+    cleaned = text.strip()
+    if not cleaned:
+        return
+
+    key = (category.lower(), cleaned.lower())
+    existing = {(item.category.lower(), item.text.lower()) for item in result.memory_candidates}
+    if key in existing:
+        return
+
+    result.memory_candidates.append(MemoryCandidate(category=category.lower(), text=cleaned))
+
+
 def extract_entities(text: str) -> ExtractionResult:
     result = ExtractionResult()
     lines = text.splitlines()
@@ -81,6 +102,11 @@ def extract_entities(text: str) -> ExtractionResult:
         match = DECISION_LINE_RE.match(line)
         if match:
             result.decisions.append(match.group(1).strip())
+
+        for category, pattern in MEMORY_PREFIX_PATTERNS:
+            match = pattern.match(line)
+            if match:
+                _append_memory_candidate(result, category, match.group(1))
 
         match = TODO_LINE_RE.match(line)
         if match:

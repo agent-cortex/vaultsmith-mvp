@@ -6,8 +6,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterable, List
 
-from .config import CATEGORY_DIRS, ensure_vault_dirs, normalize_entity_name, safe_note_filename, wikilink
-from .models import ExtractionResult, TaskItem
+from .config import CATEGORY_DIRS, MEMORY_DIR, ensure_vault_dirs, normalize_entity_name, safe_note_filename, wikilink
+from .models import ExtractionResult, MemoryCandidate, TaskItem
 
 
 def _path_wikilink(path: Path, vault_root: Path) -> str:
@@ -42,6 +42,22 @@ def _unique_tasks(tasks: Iterable[TaskItem]) -> List[TaskItem]:
     return out
 
 
+def _unique_memory_candidates(candidates: Iterable[MemoryCandidate]) -> List[MemoryCandidate]:
+    seen = set()
+    out: List[MemoryCandidate] = []
+    for candidate in candidates:
+        category = normalize_entity_name(candidate.category).lower()
+        text = normalize_entity_name(candidate.text)
+        if not category or not text:
+            continue
+        key = (category, text.lower())
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(MemoryCandidate(category=category, text=text))
+    return out
+
+
 def _append_section_if_needed(note_path: Path, title: str, run_id: str, section: str) -> bool:
     marker = f"<!-- run_id:{run_id} -->"
     existing = ""
@@ -72,6 +88,7 @@ def write_inbox_note(vault_path: Path, source_text: str, extraction: ExtractionR
     concepts = _unique_preserve_order(sorted(extraction.concepts))
     decisions = _unique_preserve_order(extraction.decisions)
     tasks = _unique_tasks(extraction.tasks)
+    memory_candidates = _unique_memory_candidates(extraction.memory_candidates)
 
     lines: List[str] = []
     lines.append(f"# Inbox Capture {stamp}")
@@ -92,6 +109,14 @@ def write_inbox_note(vault_path: Path, source_text: str, extraction: ExtractionR
     lines.append(f"- People: {', '.join(wikilink(p) for p in people) if people else '(none)'}")
     lines.append(f"- Concepts: {', '.join(wikilink(c) for c in concepts) if concepts else '(none)'}")
     lines.append(f"- Decisions: {', '.join(wikilink(d) for d in decisions) if decisions else '(none)'}")
+    lines.append("")
+
+    lines.append("## Memory Candidates")
+    if memory_candidates:
+        for candidate in memory_candidates:
+            lines.append(f"- [{candidate.category}] {candidate.text}")
+    else:
+        lines.append("- (none)")
     lines.append("")
 
     if tasks:
@@ -160,3 +185,40 @@ def write_entity_notes(vault_path: Path, extraction: ExtractionResult, run_id: s
 
             section = "\n".join(section_lines)
             _append_section_if_needed(note_path, title=name, run_id=run_id, section=section)
+
+
+def write_memory_notes(vault_path: Path, extraction: ExtractionResult, run_id: str, inbox_note_path: Path, now: datetime) -> None:
+    ensure_vault_dirs(vault_path)
+    candidates = _unique_memory_candidates(extraction.memory_candidates)
+    if not candidates:
+        return
+
+    memory_note_path = vault_path / MEMORY_DIR / "Agent Memory Candidates.md"
+    source_link = _path_wikilink(inbox_note_path, vault_path)
+    when_label = now.strftime("%Y-%m-%d %H:%M:%S")
+
+    grouped: dict[str, List[str]] = {}
+    for candidate in candidates:
+        grouped.setdefault(candidate.category, []).append(candidate.text)
+
+    section_lines = [
+        f"## Update {when_label}",
+        f"<!-- run_id:{run_id} -->",
+        f"- Source: {source_link}",
+        "- Promote to persistent memory only if stable/repeated over time.",
+        "",
+    ]
+
+    for category in sorted(grouped):
+        section_lines.append(f"### {category.title()}")
+        for text in grouped[category]:
+            section_lines.append(f"- [ ] {text}")
+        section_lines.append("")
+
+    section = "\n".join(section_lines).rstrip()
+    _append_section_if_needed(
+        note_path=memory_note_path,
+        title="Agent Memory Candidates",
+        run_id=run_id,
+        section=section,
+    )
