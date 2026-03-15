@@ -12,8 +12,14 @@ from typing import Dict, List, Sequence, Set, Tuple
 from .config import CONCEPTS_DIR, DECISIONS_DIR, INBOX_DIR, PEOPLE_DIR, PROJECTS_DIR, REVIEWS_DIR, ensure_vault_dirs
 
 CHECKBOX_RE = re.compile(r"^\s*[-*]\s*\[( |x|X)\]\s*(.+?)\s*$")
+CHECKBOX_LINE_RE = re.compile(r"^(\s*[-*]\s*\[)( |x|X)(\]\s*)(.+?)\s*$")
 WORD_RE = re.compile(r"[A-Za-z][A-Za-z0-9_-]{2,}")
 HASH_SUFFIX_RE = re.compile(r"--[0-9a-f]{8}$")
+
+TASK_RUN_CYCLE = "Run regular VaultSmith cycle on dedicated vault."
+TASK_CONFIRM_INGEST = "Confirm ingest output appears in 00 Inbox."
+TASK_CONFIRM_LINKER = "Confirm linker annotates auto links."
+TASK_CONFIRM_REVIEW = "Confirm weekly review is generated."
 
 STOPWORDS = {
     "about", "after", "again", "also", "and", "because", "been", "before", "between", "could",
@@ -94,7 +100,15 @@ def _extract_open_loops(notes: Sequence[Path], vault_path: Path) -> List[Tuple[s
 
     for note in notes:
         text = _read_text(note)
+        in_fence = False
         for line in text.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("```"):
+                in_fence = not in_fence
+                continue
+            if in_fence:
+                continue
+
             match = CHECKBOX_RE.match(line)
             if not match:
                 continue
@@ -140,7 +154,55 @@ def _build_top_themes(project_notes: Sequence[Path], concept_notes: Sequence[Pat
     return ranked
 
 
-def generate_weekly_review(vault_path: Path) -> ReviewResult:
+def _mark_verified_tasks_in_text(text: str, completion_map: Dict[str, bool]) -> Tuple[str, bool]:
+    lines = text.splitlines()
+    out: List[str] = []
+    changed = False
+    in_fence = False
+
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            in_fence = not in_fence
+            out.append(line)
+            continue
+
+        if in_fence:
+            out.append(line)
+            continue
+
+        match = CHECKBOX_LINE_RE.match(line)
+        if not match:
+            out.append(line)
+            continue
+
+        prefix, mark, suffix, task_text = match.groups()
+        should_complete = completion_map.get(task_text.strip(), False)
+        if should_complete and mark.lower() != "x":
+            out.append(f"{prefix}x{suffix}{task_text}")
+            changed = True
+        else:
+            out.append(line)
+
+    rebuilt = "\n".join(out)
+    if text.endswith("\n"):
+        rebuilt += "\n"
+    return rebuilt, changed
+
+
+def _apply_verified_task_closures(notes: Sequence[Path], completion_map: Dict[str, bool]) -> int:
+    changed_files = 0
+    for note in notes:
+        original = _read_text(note)
+        updated, changed = _mark_verified_tasks_in_text(original, completion_map)
+        if not changed:
+            continue
+        note.write_text(updated, encoding="utf-8")
+        changed_files += 1
+    return changed_files
+
+
+def generate_weekly_review(vault_path: Path, close_verified: bool = False) -> ReviewResult:
     try:
         ensure_vault_dirs(vault_path)
     except PermissionError as exc:
@@ -161,8 +223,23 @@ def generate_weekly_review(vault_path: Path) -> ReviewResult:
     concept_notes = _iter_markdown_files(concepts_dir)
     decision_notes = _iter_markdown_files(decisions_dir)
     inbox_notes = _iter_markdown_files(inbox_dir)
+    existing_review_notes = _iter_markdown_files(reviews_dir)
 
     all_context_notes = list(project_notes) + list(people_notes) + list(concept_notes) + list(decision_notes) + list(inbox_notes)
+
+    if close_verified:
+        latest_inbox = inbox_notes[0] if inbox_notes else None
+        latest_inbox_has_auto_links = False
+        if latest_inbox is not None:
+            latest_inbox_has_auto_links = "## Auto Links" in _read_text(latest_inbox)
+
+        completion_map = {
+            TASK_RUN_CYCLE: latest_inbox is not None,
+            TASK_CONFIRM_INGEST: latest_inbox is not None,
+            TASK_CONFIRM_LINKER: latest_inbox_has_auto_links,
+            TASK_CONFIRM_REVIEW: True,
+        }
+        _apply_verified_task_closures(list(all_context_notes) + list(existing_review_notes), completion_map)
 
     themes = _build_top_themes(project_notes, concept_notes, vault_path)
     open_loops = _extract_open_loops(all_context_notes, vault_path)

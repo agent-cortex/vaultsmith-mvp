@@ -114,6 +114,12 @@ python cli.py link --vault "$OBSIDIAN_VAULT_PATH" --limit 25 --min-shared-terms 
 python cli.py review --vault "$OBSIDIAN_VAULT_PATH"
 ```
 
+Optional: auto-close standard verification loops when artifacts exist (ingest note, auto links, review generation):
+
+```bash
+python cli.py review --vault "$OBSIDIAN_VAULT_PATH" --close-verified
+```
+
 ## Optional Daily Helper Script
 
 ```bash

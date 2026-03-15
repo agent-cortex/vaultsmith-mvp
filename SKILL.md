@@ -102,6 +102,11 @@ cd "$VAULTSMITH_DIR"
 python cli.py review --vault "$OBSIDIAN_VAULT_PATH"
 ```
 
+Optional (close standard verification loops when artifacts are present):
+```bash
+python cli.py review --vault "$OBSIDIAN_VAULT_PATH" --close-verified
+```
+
 Output includes:
 - Top Themes
 - Open Loops

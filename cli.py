@@ -21,6 +21,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     review = subparsers.add_parser("review", help="Generate weekly review from vault notes")
     review.add_argument("--vault", required=True, help="Path to Obsidian vault")
+    review.add_argument(
+        "--close-verified",
+        action="store_true",
+        help="Mark standard verification tasks complete when artifacts are present",
+    )
 
     init_cmd = subparsers.add_parser("init", help="Bootstrap vault files for cross-session multi-agent usage")
     init_cmd.add_argument("--vault", required=True, help="Path to Obsidian vault")
@@ -63,7 +68,7 @@ def cmd_ingest(args: argparse.Namespace) -> int:
 
 def cmd_review(args: argparse.Namespace) -> int:
     try:
-        result = generate_weekly_review(vault_path=Path(args.vault))
+        result = generate_weekly_review(vault_path=Path(args.vault), close_verified=args.close_verified)
     except ReviewError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
