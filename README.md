@@ -1,46 +1,58 @@
-VaultSmith (MVP+)
+# VaultSmith (MVP+)
 
-VaultSmith is a lightweight Python CLI that turns plain text into an Obsidian-compatible, cross-session knowledge graph.
+VaultSmith is a lightweight Python CLI that converts plain text into an Obsidian-compatible, cross-session knowledge graph.
 
-It is designed to work with agent memory workflows out of the box:
-- Small, durable persistent memory (stable facts/preferences)
+It is designed for a two-layer memory model:
+- Small, durable persistent memory (stable preferences/facts)
 - Large, expandable vault graph (sessions/projects/people/concepts/decisions)
 
-This keeps memory compact while allowing unlimited long-term expansion in the vault.
+This keeps persistent memory compact while vault knowledge can grow indefinitely.
 
-What changed in this version
+## What's New
+
 - Added `init` command to bootstrap an agent-ready vault layout
-- Added memory-candidate extraction from plain text prefixes:
+- Added memory-candidate extraction from text prefixes:
   - `Preference:`
   - `Environment:`
   - `Convention:`
   - `Profile:`
   - `Memory:`
-- Added automatic `05 Memory/Agent Memory Candidates.md` updates during ingest
+- Added automatic updates to `05 Memory/Agent Memory Candidates.md` during ingest
 - Added `memory_candidates` count to ingest output
-- Added reusable `99 System/AGENT-PLAYBOOK.md` and capture template for any copied agent setup
+- Added reusable `99 System/AGENT-PLAYBOOK.md` and capture template
+- Added `link` command for deterministic cross-note auto-linking
 
-MVP pipeline
+## Pipeline
+
 1. Ingest plaintext input
-2. Extract entities with deterministic heuristics (no external API)
+2. Extract entities with deterministic heuristics (no external APIs)
 3. Write/update Obsidian notes with wikilinks
-4. Capture candidate durable facts for promotion into persistent memory
+4. Capture candidate durable facts for persistent memory promotion
+5. Auto-link recent ingest notes based on shared terms
+6. Generate weekly review synthesis
 
-Project structure
-- cli.py
-- requirements.txt
-- sample_input.txt
-- vaultsmith/
-  - __init__.py
-  - bootstrap.py
-  - config.py
-  - models.py
-  - extract.py
-  - writer.py
-  - pipeline.py
-  - review.py
+## Project Structure
 
-Extraction rules
+```text
+.
+├── cli.py
+├── requirements.txt
+├── sample_input.txt
+├── SKILL.md
+└── vaultsmith/
+    ├── __init__.py
+    ├── bootstrap.py
+    ├── config.py
+    ├── extract.py
+    ├── linker.py
+    ├── models.py
+    ├── pipeline.py
+    ├── review.py
+    └── writer.py
+```
+
+## Extraction Rules
+
 - Projects:
   - lines starting with `Project:`
   - hashtags like `#project/<name>`
@@ -57,7 +69,8 @@ Extraction rules
 - Memory candidates:
   - lines starting with `Preference:` / `Environment:` / `Convention:` / `Profile:` / `Memory:`
 
-Vault folders
+## Vault Layout
+
 - `00 Inbox`
 - `05 Memory`
 - `10 Projects`
@@ -67,87 +80,119 @@ Vault folders
 - `90 Reviews`
 - `99 System`
 
-Quickstart
-1) From project root:
+## Quickstart (Portable)
+
+1) Set environment-specific paths:
+
 ```bash
-cd /home/home/vaultsmith
+export VAULTSMITH_DIR="/absolute/path/to/vaultsmith"
+export OBSIDIAN_VAULT_PATH="/absolute/path/to/your-obsidian-vault"
 ```
 
-2) Bootstrap vault once (required for out-of-box agent compatibility):
+2) Bootstrap vault once:
+
 ```bash
-python cli.py init --vault /home/home/obsidian-vault --agent-label "Any Agent"
+cd "$VAULTSMITH_DIR"
+python cli.py init --vault "$OBSIDIAN_VAULT_PATH" --agent-label "Any Agent"
 ```
 
-3) Ingest session/plaintext:
+3) Ingest a session/plaintext file:
+
 ```bash
-python cli.py ingest --input sample_input.txt --vault /home/home/obsidian-vault
+python cli.py ingest --input sample_input.txt --vault "$OBSIDIAN_VAULT_PATH"
 ```
 
-4) Run auto-linker (recommended before review):
+4) Auto-link recent ingest notes:
+
 ```bash
-python cli.py link --vault /home/home/obsidian-vault --limit 25 --min-shared-terms 2
+python cli.py link --vault "$OBSIDIAN_VAULT_PATH" --limit 25 --min-shared-terms 2
 ```
 
 5) Generate weekly review:
+
 ```bash
-python cli.py review --vault /home/home/obsidian-vault
+python cli.py review --vault "$OBSIDIAN_VAULT_PATH"
 ```
 
-Expected artifacts
+## Optional Daily Helper Script
+
+```bash
+~/.hermes/skills/note-taking/vaultsmith/scripts/run_daily_cycle.sh \
+  --vaultsmith-dir "$VAULTSMITH_DIR" \
+  --vault "$OBSIDIAN_VAULT_PATH" \
+  --input /absolute/path/to/session_input.txt \
+  --run-id day-001
+```
+
+The script also supports environment-variable-only mode and legacy positional args.
+
+## Expected Artifacts
+
 - New inbox capture note (always created):
-  - `/home/home/obsidian-vault/00 Inbox/ingest-YYYYMMDD-HHMMSS-<run_id>.md`
+  - `00 Inbox/ingest-YYYYMMDD-HHMMSS-<run_id>.md`
 - Entity notes (created/appended idempotently):
-  - `/10 Projects/<name>--<hash>.md`
-  - `/20 People/<name>--<hash>.md`
-  - `/30 Concepts/<name>--<hash>.md`
-  - `/40 Decisions/<name>--<hash>.md`
+  - `10 Projects/<name>--<hash>.md`
+  - `20 People/<name>--<hash>.md`
+  - `30 Concepts/<name>--<hash>.md`
+  - `40 Decisions/<name>--<hash>.md`
 - Memory notes:
-  - `/05 Memory/Agent Memory Candidates.md` (append-on-run-id)
-  - `/05 Memory/Persistent Memory Schema.md` (created by init)
-- Agent system notes:
-  - `/99 System/AGENT-PLAYBOOK.md` (created by init)
+  - `05 Memory/Agent Memory Candidates.md`
+  - `05 Memory/Persistent Memory Schema.md`
+- System note:
+  - `99 System/AGENT-PLAYBOOK.md`
 - Auto-link updates:
-  - recent `00 Inbox/ingest-*.md` notes get appended `## Auto Links ...` sections with related wikilinks
-- Weekly review note:
-  - `/90 Reviews/weekly-review-YYYY-Www.md`
+  - appended `## Auto Links ...` sections in recent `00 Inbox/ingest-*.md`
+- Weekly review:
+  - `90 Reviews/weekly-review-YYYY-Www.md`
 
-Idempotency behavior
-- Entity notes append a dated section at most once per `run_id`.
-- Memory-candidate note also appends at most once per `run_id`.
-- Inbox capture in `00 Inbox` is always a new file for each run.
-- Without `--run-id`, VaultSmith auto-generates one.
+## Idempotency
 
-Input encoding and error behavior
+- Entity notes append at most once per `run_id`.
+- Memory-candidate note appends at most once per `run_id`.
+- Linker auto-link section appends at most once per linker `run_id`.
+- Inbox capture is always a new file per ingest run.
+- If `--run-id` is omitted, VaultSmith auto-generates one.
+
+## Error Behavior
+
 - Input files must be UTF-8 text.
-- Missing/unreadable input or unwritable vault path returns concise stderr error and exit code `1`.
+- Missing/unreadable input or unwritable vault path returns concise stderr errors with exit code `1`.
 
-Weekly review includes
+## Weekly Review Includes
+
 - Top Themes
 - Open Loops
 - Recent Decisions
 - Suggested Next 3 Actions
 - Stale Projects (>14 days)
 
-Agent-copy compatibility contract (Waltz/VaultSmith)
-If another agent copies this setup, it should follow:
-1. Run `init` once in target vault.
-2. Feed each session through `ingest`.
-3. Use memory prefixes in source text when candidate durable facts appear.
+## Agent-Copy Compatibility Contract
+
+Any agent/environment should follow:
+
+1. Run `init` once in the target vault.
+2. Feed each meaningful session through `ingest`.
+3. Use memory prefixes when candidate durable facts appear.
 4. Promote only stable/repeated facts from `05 Memory/Agent Memory Candidates.md` to `05 Memory/Persistent Memory Schema.md`.
-5. Run `link` on a recurring cadence (before review) to grow cross-session interlinks.
+5. Run `link` regularly (before review) to grow interlinks.
 6. Run `review` on a recurring cadence.
 
-Example ingest with explicit run id
+## Examples
+
+Ingest with explicit run id:
+
 ```bash
-python cli.py ingest --input sample_input.txt --vault /home/home/obsidian-vault --run-id demo-001
+python cli.py ingest --input sample_input.txt --vault "$OBSIDIAN_VAULT_PATH" --run-id demo-001
 ```
 
-Example linker run with explicit run id
+Link with explicit run id:
+
 ```bash
-python cli.py link --vault /home/home/obsidian-vault --limit 25 --min-shared-terms 2 --run-id link-001
+python cli.py link --vault "$OBSIDIAN_VAULT_PATH" --limit 25 --min-shared-terms 2 --run-id link-001
 ```
 
-Example input snippet for memory compatibility
+Memory-compatible input snippet:
+
 ```text
 Project: VaultSmith
 Concept: Knowledge Graph
@@ -155,7 +200,7 @@ Decision: Keep deterministic extraction for MVP
 TODO: Add weekly linker pass
 
 Preference: User prefers concise action-status labels.
-Environment: Obsidian vault path is /home/home/obsidian-vault.
+Environment: Obsidian vault path is /absolute/path/to/your-obsidian-vault.
 Convention: Promote to persistent memory only after repetition.
 Profile: Preferred name is Megabyte.
 Memory: Quiet hours are 23:00-06:00 unless urgent.
