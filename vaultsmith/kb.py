@@ -77,6 +77,7 @@ class KbCompileResult:
     entities_created: int
     methods_created: int
     questions_created: int
+    sources_skipped: int
 
 
 @dataclass
@@ -470,12 +471,33 @@ def _write_index_files(vault_path: Path, source_to_wiki: Dict[str, str], backlin
     return 3
 
 
-def compile_sources(vault_path: Path, limit: int = 200) -> KbCompileResult:
+def compile_sources(
+    vault_path: Path,
+    limit: int = 200,
+    compiled_sources: Dict[str, str] | None = None,
+) -> KbCompileResult:
     _ensure_kb_dirs(vault_path)
 
     sources = _iter_md(vault_path / SOURCES_DIR)[:limit]
     if not sources:
-        return KbCompileResult(0, 0, 0, 0, 0, 0)
+        return KbCompileResult(0, 0, 0, 0, 0, 0, 0)
+
+    known: Dict[str, str] = compiled_sources if compiled_sources is not None else {}
+
+    # Compute content signatures; skip sources already compiled with same content
+    sources_to_process: List[Path] = []
+    sources_skipped = 0
+    for src in sources:
+        sig = hashlib.sha1(_read_text(src).encode()).hexdigest()[:12]
+        key = str(src.resolve())
+        if known.get(key) == sig:
+            sources_skipped += 1
+        else:
+            sources_to_process.append(src)
+
+    # If everything is known, skip compilation entirely
+    if not sources_to_process:
+        return KbCompileResult(0, 0, 0, 0, 0, 0, sources_skipped)
 
     source_to_wiki: Dict[str, str] = {}
     backlinks: Dict[str, List[str]] = {}
@@ -503,15 +525,15 @@ def compile_sources(vault_path: Path, limit: int = 200) -> KbCompileResult:
         normalized = re.sub(r"\s+", " ", normalized).strip()
         return normalized[:120], polarity
 
-    for src in sources:
+    for src in sources_to_process:
         raw = _read_text(src)
         meta, body = _parse_frontmatter(raw)
         source_id = meta.get("source_id") or hashlib.sha1(str(src).encode("utf-8")).hexdigest()[:10]
         title = meta.get("title") or src.stem
 
         bullets = [s.strip() for s in SENTENCE_RE.split(body) if len(s.strip()) > 30][:6]
-        concepts = _dedupe_terms(_titlecase_candidates(body))[:12]
-        entities = _dedupe_terms(_titlecase_candidates((meta.get("author", "") + "\n" + body), min_count=1))[:12]
+        concepts = _dedupe_terms(_titlecase_candidates(body))[:5]
+        entities = _dedupe_terms(_titlecase_candidates((meta.get("author", "") + "\n" + body), min_count=1))[:5]
         methods = _method_candidates(body)
         questions = _question_candidates(body)
 
@@ -604,6 +626,9 @@ def compile_sources(vault_path: Path, limit: int = 200) -> KbCompileResult:
 
     auto_linked_nodes = _auto_link_low_degree_nodes(vault_path, max_nodes=300, min_shared_terms=1)
     wiki_wiki_links = _auto_link_wiki_to_wiki(vault_path, max_pairs=200, min_shared_terms=2)
+    # Second pass to catch newly-linked nodes that can now be linked further
+    auto_linked_nodes_2 = _auto_link_low_degree_nodes(vault_path, max_nodes=300, min_shared_terms=1)
+    auto_linked_nodes_total = auto_linked_nodes + auto_linked_nodes_2
 
     updated_indexes = _write_index_files(vault_path, source_to_wiki, backlinks)
     aliases_path = _write_aliases_index(vault_path, alias_map)
@@ -618,7 +643,7 @@ def compile_sources(vault_path: Path, limit: int = 200) -> KbCompileResult:
         f"- Wiki pages compiled: {compiled_pages}",
         f"- Created pages: {len(touched_created)}",
         f"- Updated pages: {len(touched_updated)}",
-        f"- Auto-linked low-degree nodes: {auto_linked_nodes}",
+        f"- Auto-linked low-degree nodes: {auto_linked_nodes_total} (2 passes: {auto_linked_nodes} + {auto_linked_nodes_2})",
         f"- Wiki-to-wiki auto-links: {wiki_wiki_links}",
         "",
         "## Created pages",
@@ -642,7 +667,7 @@ def compile_sources(vault_path: Path, limit: int = 200) -> KbCompileResult:
             f"compiled_pages={compiled_pages}",
             f"created_pages={len(set(touched_created))}",
             f"updated_pages={len(set(touched_updated))}",
-            f"auto_linked_nodes={auto_linked_nodes}",
+            f"auto_linked_nodes={auto_linked_nodes_total}",
             f"wiki_wiki_links={wiki_wiki_links}",
             f"compile_report=[[{report_path.relative_to(vault_path).with_suffix('').as_posix()}]]",
             f"aliases=[[{aliases_path.relative_to(vault_path).with_suffix('').as_posix()}]]",
@@ -657,6 +682,7 @@ def compile_sources(vault_path: Path, limit: int = 200) -> KbCompileResult:
         entities_created=entities_created,
         methods_created=methods_created,
         questions_created=questions_created,
+        sources_skipped=sources_skipped,
     )
 
 
